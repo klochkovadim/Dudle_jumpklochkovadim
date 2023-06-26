@@ -1,188 +1,132 @@
+import pygame
 import random
+pygame.init()
 
-class Shape(object):
-    shapeNone = 0
-    shapeI = 1
-    shapeL = 2
-    shapeJ = 3
-    shapeT = 4
-    shapeO = 5
-    shapeS = 6
-    shapeZ = 7
+class Block:
+    def __init__(self, x, y, color):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.blockSize = 30
+        self.rect = pygame.Rect(self.x, self.y, self.blockSize, self.blockSize)
 
-    shapeCoord = (
-        ((0, 0), (0, 0), (0, 0), (0, 0)),
-        ((0, -1), (0, 0), (0, 1), (0, 2)),
-        ((0, -1), (0, 0), (0, 1), (1, 1)),
-        ((0, -1), (0, 0), (0, 1), (-1, 1)),
-        ((0, -1), (0, 0), (0, 1), (1, 0)),
-        ((0, 0), (0, -1), (1, 0), (1, -1)),
-        ((0, 0), (0, -1), (-1, 0), (1, -1)),
-        ((0, 0), (0, -1), (1, 0), (-1, -1))
-    )
-
-    def __init__(self, shape=0):
-        self.shape = shape
-
-    def getRotatedOffsets(self, direction):
-        tmpCoords = Shape.shapeCoord[self.shape]
-        if direction == 0 or self.shape == Shape.shapeO:
-            return ((x, y) for x, y in tmpCoords)
-
-        if direction == 1:
-            return ((-y, x) for x, y in tmpCoords)
-
-        if direction == 2:
-            if self.shape in (Shape.shapeI, Shape.shapeZ, Shape.shapeS):
-                return ((x, y) for x, y in tmpCoords)
-            else:
-                return ((-x, -y) for x, y in tmpCoords)
-
-        if direction == 3:
-            if self.shape in (Shape.shapeI, Shape.shapeZ, Shape.shapeS):
-                return ((-y, x) for x, y in tmpCoords)
-            else:
-                return ((y, -x) for x, y in tmpCoords)
-
-    def getCoords(self, direction, x, y):
-        return ((x + xx, y + yy) for xx, yy in self.getRotatedOffsets(direction))
-
-    def getBoundingOffsets(self, direction):
-        tmpCoords = self.getRotatedOffsets(direction)
-        minX, maxX, minY, maxY = 0, 0, 0, 0
-        for x, y in tmpCoords:
-            if minX > x:
-                minX = x
-            if maxX < x:
-                maxX = x
-            if minY > y:
-                minY = y
-            if maxY < y:
-                maxY = y
-        return (minX, maxX, minY, maxY)
+    def draw(self):
+        pygame.draw.rect(scr, self.color, self.rect, 19, 5)
+        pygame.draw.rect(scr, 'black', self.rect, 1, 5)
 
 
-class BoardData(object):
-    width = 10
-    height = 22
+class Figure:
+    def __init__(self, x, y):
+        color = random.choice(['red', 'green', 'blue', 'yellow'])
+        self.type = random.choice(['l', 'i', 's', 'r'])
+        self.x = x
+        self.y = y
+        if self.type == 'l':
+            self.blocks = [Block(self.x, self.y, color), Block(self.x, self.y+30, color),
+                           Block(self.x, self.y + 60, color), Block(self.x + 30, self.y + 60, color)]
+        elif self.type == 'i':
+            self.blocks = [Block(self.x, self.y, color), Block(self.x, self.y + 30, color),
+                            Block(self.x, self.y + 60, color), Block(self.x, self.y + 90, color)]
+        elif self.type == 's':
+            self.blocks = [Block(self.x, self.y, color), Block(self.x + 30, self.y, color),
+                           Block(self.x, self.y + 30, color), Block(self.x - 30, self.y + 30, color)]
+        elif self.type == 'r':
+            self.blocks = [Block(self.x, self.y, color), Block(self.x + 30, self.y, color),
+                           Block(self.x, self.y + 30, color), Block(self.x + 30, self.y + 30, color)]
 
-    def __init__(self):
-        self.backBoard = [0] * BoardData.width * BoardData.height
+    def draw(self):
+        for block in self.blocks:
+            block.draw()
 
-        self.currentX = -1
-        self.currentY = -1
-        self.currentDirection = 0
-        self.currentShape = Shape()
-        self.nextShape = Shape(random.randint(1, 7))
-
-        self.shapeStat = [0] * 8
-
-    def getData(self):
-        return self.backBoard[:]
-
-    def getValue(self, x, y):
-        return self.backBoard[x + y * BoardData.width]
-
-    def getCurrentShapeCoord(self):
-        return self.currentShape.getCoords(self.currentDirection, self.currentX, self.currentY)
-
-    def createNewPiece(self):
-        minX, maxX, minY, maxY = self.nextShape.getBoundingOffsets(0)
-        result = False
-        if self.tryMoveCurrent(0, 5, -minY):
-            self.currentX = 5
-            self.currentY = -minY
-            self.currentDirection = 0
-            self.currentShape = self.nextShape
-            self.nextShape = Shape(random.randint(1, 7))
-            result = True
-        else:
-            self.currentShape = Shape()
-            self.currentX = -1
-            self.currentY = -1
-            self.currentDirection = 0
-            result = False
-        self.shapeStat[self.currentShape.shape] += 1
-        return result
-
-    def tryMoveCurrent(self, direction, x, y):
-        return self.tryMove(self.currentShape, direction, x, y)
-
-    def tryMove(self, shape, direction, x, y):
-        for x, y in shape.getCoords(direction, x, y):
-            if x >= BoardData.width or x < 0 or y >= BoardData.height or y < 0:
-                return False
-            if self.backBoard[x + y * BoardData.width] > 0:
-                return False
-        return True
-
-    def moveDown(self):
-        lines = 0
-        if self.tryMoveCurrent(self.currentDirection, self.currentX, self.currentY + 1):
-            self.currentY += 1
-        else:
-            self.mergePiece()
-            lines = self.removeFullLines()
-            self.createNewPiece()
-        return lines
-
-    def dropDown(self):
-        while self.tryMoveCurrent(self.currentDirection, self.currentX, self.currentY + 1):
-            self.currentY += 1
-        self.mergePiece()
-        lines = self.removeFullLines()
-        self.createNewPiece()
-        return lines
-
-    def moveLeft(self):
-        if self.tryMoveCurrent(self.currentDirection, self.currentX - 1, self.currentY):
-            self.currentX -= 1
-
-    def moveRight(self):
-        if self.tryMoveCurrent(self.currentDirection, self.currentX + 1, self.currentY):
-            self.currentX += 1
-
-    def rotateRight(self):
-        if self.tryMoveCurrent((self.currentDirection + 1) % 4, self.currentX, self.currentY):
-            self.currentDirection += 1
-            self.currentDirection %= 4
-
-    def rotateLeft(self):
-        if self.tryMoveCurrent((self.currentDirection - 1) % 4, self.currentX, self.currentY):
-            self.currentDirection -= 1
-            self.currentDirection %= 4
-
-    def removeFullLines(self):
-        newBackBoard = [0] * BoardData.width * BoardData.height
-        newY = BoardData.height - 1
-        lines = 0
-        for y in range(BoardData.height - 1, -1, -1):
-            blockCount = sum([1 if self.backBoard[x + y * BoardData.width] > 0 else 0 for x in range(BoardData.width)])
-            if blockCount < BoardData.width:
-                for x in range(BoardData.width):
-                    newBackBoard[x + newY * BoardData.width] = self.backBoard[x + y * BoardData.width]
-                newY -= 1
-            else:
-                lines += 1
-        if lines > 0:
-            self.backBoard = newBackBoard
-        return lines
-
-    def mergePiece(self):
-        for x, y in self.currentShape.getCoords(self.currentDirection, self.currentX, self.currentY):
-            self.backBoard[x + y * BoardData.width] = self.currentShape.shape
-
-        self.currentX = -1
-        self.currentY = -1
-        self.currentDirection = 0
-        self.currentShape = Shape()
-
-    def clear(self):
-        self.currentX = -1
-        self.currentY = -1
-        self.currentDirection = 0
-        self.currentShape = Shape()
-        self.backBoard = [0] * BoardData.width * BoardData.height
+    def move(self, direction='down'):
+        if direction == 'down':
+            for block in self.blocks:
+                block.rect.y += 1
+        elif direction == 'left':
+            for block in self.blocks:
+                block.rect.x -= block.blockSize
+        elif direction == 'right':
+            for block in self.blocks:
+                block.rect.x += block.blockSize
+        elif direction == 'faster_down':
+            for block in self.blocks:
+                block.rect.y += block.blockSize
 
 
-BOARD_DATA = BoardData()
+def checkColision(figure):
+    for block in figure.blocks:
+        if block.rect.colliderect(bottom_barier):
+            return True
+        if block.rect.collideobjects(fallen_blocks):
+            return True
+
+def checkFilling(blocks):
+    x = width
+    y = height
+    while y != 0:
+        count = 0
+        while x != 0:
+            for block in blocks:
+                if block.rect.collidepoint(x+1, y-28):
+                    count += 1
+            if count == 10:
+                for block in blocks:
+                    if block.rect.collidepoint(x+1, y-28):
+                        blocks.remove(block)
+            x -= block_size
+        y -= block_size
+
+block_size = 30
+width = block_size * 10
+height = block_size * 20
+
+clock = pygame.time.Clock()
+
+pygame.mixer.music.load('bg_music.mp3')
+pygame.mixer.music.set_volume(0.05)
+pygame.mixer.music.play(-1)
+
+fall_sound = pygame.mixer.Sound('fall_sound.mp3')
+fall_sound.set_volume(0.1)
+
+scr = pygame.display.set_mode((width, height))
+bgColor = 'black'
+
+cur_figure = Figure(width/2 - block_size, 0)
+fallen_blocks = []
+
+bottom_barier = pygame.Rect(0, height, width, 1)
+left_barier = pygame.Rect(-1, 0, 1, height)
+right_barier = pygame.Rect(width, 0, 1, height)
+
+GameOver = False
+while not GameOver:
+
+    if checkColision(cur_figure):
+        for block in cur_figure.blocks:
+            fallen_blocks.append(block)
+            fall_sound.play()
+        cur_figure = Figure(width/2 - block_size, 0)
+        checkFilling(fallen_blocks)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            GameOver = True
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                cur_figure.move('left')
+            if event.key == pygame.K_RIGHT:
+                cur_figure.move('right')
+            if event.key == pygame.K_DOWN:
+                cur_figure.move('faster_down')
+    scr.fill(bgColor)
+
+    cur_figure.move()
+
+    cur_figure.draw()
+    for block in fallen_blocks:
+        block.draw()
+
+
+    pygame.display.update()
+    clock.tick(60)
